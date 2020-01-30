@@ -2,11 +2,10 @@ import os
 import numpy as np
 from keras.utils import Sequence
 import pickle
+from shuffledList import ShuffledList
 
 class MNISTSequence(Sequence):
-	def __init__(self, dataDirectory, batchSize, seqSubstringOffset=0, seqSubstringLen=0, isTrain=True):
-		self.seqSubstringOffset = seqSubstringOffset
-		self.seqSubstringLen = seqSubstringLen
+	def __init__(self, dataDirectory, batchSize, isTrain=True):
 		pickleFilePath = os.path.join(dataDirectory, 'MNISTSequence.pickle')
 		loadedPickleFile = False
 		try:
@@ -38,15 +37,12 @@ class MNISTSequence(Sequence):
 				pickle.dump(pickleObj, pickleFile)
 			
 			if isTrain:
-				self.sequences = trainSequences
+				self.sequences = ShuffledList(trainSequences)
 			else:
-				self.sequences = testSequences
+				self.sequences = ShuffledList(testSequences)
 		
 		sequenceLengths = [ sequence.shape[0] for sequence in self.sequences ]
 		self.maxSequenceLength = max(sequenceLengths)
-		self.maxSequenceLength -= self.seqSubstringOffset
-		if self.seqSubstringLen > 0:
-			self.maxSequenceLength = min(self.maxSequenceLength, self.seqSubstringLen)
 		self.sequenceElementSize = self.sequences[0].shape[1]
 		self.batchSize = batchSize
 		self.numBatches = len(self.sequences) // self.batchSize
@@ -61,11 +57,11 @@ class MNISTSequence(Sequence):
 		for batchIndex in range(self.batchSize):
 			index = batchStartOffset + batchIndex
 			sequence = self.sequences[index]
-			sequence = sequence[self.seqSubstringOffset:, :]
-			if self.seqSubstringLen > 0:
-				sequence = sequence[:self.seqSubstringLen, :]
 			batch[batchIndex, :sequence.shape[0], :] = sequence
 		return batch
+	
+	def on_epoch_end(self):
+		self.sequences.shuffle()
 	
 	def GetSequenceFiles(self, directory):
 		sequenceFiles = os.listdir(directory)
